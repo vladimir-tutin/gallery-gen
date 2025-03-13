@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stable Diffusion Gallery</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1><i class="fas fa-paint-brush"></i> Stable Diffusion Gallery</h1>
+      <div class="api-status">
+        <span id="api-status-indicator" class="status-indicator"></span>
+        <span id="api-status-text">Checking API...</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- New Prompt Form Section -->
+    <section id="create-prompt-section" class="card collapsible-section">
+      <div class="collapsible-header">
+        <h2><i class="fas fa-plus-circle"></i> Create New Prompt</h2>
+        <button type="button" class="btn-toggle"><i class="fas fa-chevron-down"></i></button>
+      </div>
+      <div class="collapsible-content" style="display: none;">
+        <form id="create-prompt-form">
+          <div class="form-group">
+            <label for="prompt-name">Name</label>
+            <input type="text" id="prompt-name" placeholder="Enter a name for this prompt" required>
+          </div>
+          <div class="form-row">
+            <div class="form-group" style="flex: 2;">
+              <label for="prompt-text">Prompt</label>
+              <textarea id="prompt-text" placeholder="Enter your prompt text" rows="3" required></textarea>
+            </div>
+            <div class="form-group" style="flex: 1;">
+              <label for="negative-prompt">Negative Prompt</label>
+              <textarea id="negative-prompt" placeholder="Enter negative prompt text" rows="3"></textarea>
+            </div>
+          </div>
+          <div class="form-group" style="width: 200px;">
+            <label for="seed-value">Seed (-1 for random)</label>
+            <input type="number" id="seed-value" placeholder="-1" value="-1">
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn primary"><i class="fas fa-plus-circle"></i> Create Prompt</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- Prompt Cards Gallery Section -->
+    <section id="prompts-gallery">
+      <h2>Your Prompts</h2>
+      <div class="loading-indicator" id="gallery-loading">
+        <i class="fas fa-spinner fa-spin"></i> Loading prompts...
+      </div>
+      <div id="prompt-cards" class="prompt-cards">
+        <!-- Prompt cards will be dynamically inserted here -->
+      </div>
+    </section>
+  </main>
+
+  <!-- Prompt Detail Modal -->
+  <div id="prompt-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modal-prompt-name">Prompt Name</h2>
+        <button class="modal-close">&times;</button>
+      </div>
+      
+      <div class="modal-body">
+        <!-- Prompt Details Section -->
+        <div class="prompt-details">
+          <!-- Always visible generation controls -->
+          <div class="prompt-actions prompt-main-actions">
+            <div class="generate-settings">
+              <label for="image-count">Images to generate:</label>
+              <input type="range" id="image-count" min="1" max="4" value="1" step="1">
+              <span id="image-count-label">1</span>
+            </div>
+            <button id="generate-images-btn" class="btn success">
+              <i class="fas fa-magic"></i> Generate Images
+            </button>
+          </div>
+          
+          <!-- Collapsible edit prompt section -->
+          <div class="collapsible-section edit-prompt-section">
+            <div class="collapsible-header">
+              <h3><i class="fas fa-edit"></i> Edit Prompt</h3>
+              <button type="button" class="btn-toggle"><i class="fas fa-chevron-down"></i></button>
+            </div>
+            <div class="collapsible-content" style="display: none;">
+              <div class="prompt-info">
+                <div class="form-row">
+                  <div class="form-group" style="flex: 2;">
+                    <label for="modal-prompt-text">Prompt</label>
+                    <textarea id="modal-prompt-text" placeholder="Prompt text"></textarea>
+                  </div>
+                  <div class="form-group" style="flex: 1;">
+                    <label for="modal-negative-prompt">Negative Prompt</label>
+                    <textarea id="modal-negative-prompt" placeholder="Negative prompt text"></textarea>
+                  </div>
+                </div>
+                <div class="form-group" style="width: 150px;">
+                  <label for="modal-seed-value">Seed</label>
+                  <input type="number" id="modal-seed-value" placeholder="-1">
+                </div>
+                <div class="form-actions">
+                  <button id="update-prompt-btn" class="btn primary">
+                    <i class="fas fa-save"></i> Update Prompt
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Image Gallery Section -->
+        <div class="image-gallery-section">
+          <h3>Generated Images</h3>
+          
+          <!-- Tags for modal -->
+          <div class="tags-section">
+            <h4>Additional Tags</h4>
+            <div id="modal-tags-list" class="modal-tags-list">
+              <!-- Tags will be dynamically inserted here -->
+            </div>
+          </div>
+          
+          <div id="image-generation-status" class="status-message" style="display: none;">
+            <i class="fas fa-spinner fa-spin"></i> Generating images...
+          </div>
+          <div id="image-gallery" class="image-gallery">
+            <!-- Images will be dynamically inserted here -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notifications -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Scripts -->
+  <script src="script.js"></script>
+</body>
+</html>

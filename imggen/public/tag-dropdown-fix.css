@@ -1,0 +1,69 @@
+/* Fixed tag dropdown styles */
+.tags-dropdown {
+    position: fixed !important; /* Use fixed positioning to avoid getting cut off */
+    width: 250px;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    z-index: 9999 !important; /* Ensure it's above everything */
+    padding: 1rem;
+    border: 1px solid #e5e7eb;
+    top: auto; /* Let the JavaScript set the position */
+    left: auto; /* Let the JavaScript set the position */
+  }
+  
+  .tags-list {
+    max-height: 200px;
+    overflow-y: auto;
+    margin-bottom: 1rem;
+    border: 1px solid #e5e7eb;
+    padding: 0.5rem;
+    border-radius: 8px;
+    background-color: #f9fafb;
+  }
+  
+  .tag-option {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.5rem;
+    padding: 0.25rem 0;
+    background-color: white;
+    border-radius: 4px;
+    padding: 5px;
+  }
+  
+  .tag-option:hover {
+    background-color: #f3f4f6;
+  }
+  
+  .add-tag-form {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid #e5e7eb;
+  }
+  
+  .add-tag-form input {
+    flex: 1;
+    padding: 0.4rem 0.75rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 0.875rem;
+  }
+  
+  .add-tag-btn {
+    padding: 0.4rem 0.75rem !important;
+    font-size: 0.875rem !important;
+    min-width: auto !important;
+    width: auto !important;
+  }
+  
+  /* Tag input placeholder */
+  .tags-dropdown-title {
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    display: block;
+    color: #1f2937;
+    font-size: 0.9rem;
+  }
