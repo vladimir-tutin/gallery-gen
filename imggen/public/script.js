@@ -1165,6 +1165,169 @@ function renderImageGallery(images, previewImage) {
       </div>
     `;
     
+    // Add click event handler for the image itself - ADDED FOR IMAGE VIEWER
+    const img = imageContainer.querySelector('img');
+    img.addEventListener('click', function(e) {
+      e.stopPropagation();
+      
+      // Create full-screen modal for the image
+      const viewerModal = document.createElement('div');
+      viewerModal.className = 'image-viewer-modal';
+      viewerModal.style.position = 'fixed';
+      viewerModal.style.top = '0';
+      viewerModal.style.left = '0';
+      viewerModal.style.width = '100%';
+      viewerModal.style.height = '100%';
+      viewerModal.style.backgroundColor = 'rgba(0, 0, 0, 0.9)';
+      viewerModal.style.display = 'flex';
+      viewerModal.style.justifyContent = 'center';
+      viewerModal.style.alignItems = 'center';
+      viewerModal.style.zIndex = '2000';
+      
+      // Get all images from gallery for navigation
+      const allImages = [];
+      const galleryImages = imageGallery.querySelectorAll('.image-container');
+      let currentIndex = 0;
+      
+      galleryImages.forEach((container, idx) => {
+        const img = container.querySelector('img');
+        if (img) {
+          allImages.push({
+            src: img.src,
+            id: container.dataset.imageId
+          });
+          
+          // Find current image index
+          if (container.dataset.imageId === image.id) {
+            currentIndex = idx;
+          }
+        }
+      });
+      
+      // Add navigation buttons if there are multiple images
+      let prevButton = '';
+      let nextButton = '';
+      
+      if (allImages.length > 1) {
+        prevButton = `
+          <button id="prev-btn" style="position: absolute; left: 20px; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.2); border: none; color: white; width: 50px; height: 50px; border-radius: 50%; font-size: 20px; cursor: pointer; display: ${currentIndex > 0 ? 'block' : 'none'}">
+            <i class="fas fa-chevron-left"></i>
+          </button>
+        `;
+        
+        nextButton = `
+          <button id="next-btn" style="position: absolute; right: 20px; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.2); border: none; color: white; width: 50px; height: 50px; border-radius: 50%; font-size: 20px; cursor: pointer; display: ${currentIndex < allImages.length - 1 ? 'block' : 'none'}">
+            <i class="fas fa-chevron-right"></i>
+          </button>
+        `;
+      }
+      
+      // Add image counter if there are multiple images
+      const counter = allImages.length > 1 ? 
+        `<div style="position: absolute; bottom: 20px; color: white; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 15px;">
+          <span id="img-counter">${currentIndex + 1}</span> of ${allImages.length}
+        </div>` : '';
+      
+      // Create modal content
+      viewerModal.innerHTML = `
+        <div style="position: relative; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center;">
+          <button id="close-btn" style="position: absolute; top: 20px; right: 20px; background: none; border: none; color: white; font-size: 30px; cursor: pointer;">&times;</button>
+          
+          ${prevButton}
+          
+          <img id="fullsize-img" src="${image.path}" style="max-width: 90%; max-height: 90%; object-fit: contain;">
+          
+          ${nextButton}
+          
+          ${counter}
+        </div>
+      `;
+      
+      // Add the modal to the body
+      document.body.appendChild(viewerModal);
+      
+      // Prevent scrolling on the body
+      document.body.style.overflow = 'hidden';
+      
+      // Close button functionality
+      const closeBtn = document.getElementById('close-btn');
+      closeBtn.addEventListener('click', () => {
+        document.body.removeChild(viewerModal);
+        document.body.style.overflow = '';
+      });
+      
+      // Close on background click
+      viewerModal.addEventListener('click', (evt) => {
+        if (evt.target === viewerModal) {
+          document.body.removeChild(viewerModal);
+          document.body.style.overflow = '';
+        }
+      });
+      
+      // Function to update the displayed image
+      function updateImage(idx) {
+        const fullsizeImg = document.getElementById('fullsize-img');
+        const imgCounter = document.getElementById('img-counter');
+        const prevBtn = document.getElementById('prev-btn');
+        const nextBtn = document.getElementById('next-btn');
+        
+        if (fullsizeImg) {
+          fullsizeImg.src = allImages[idx].src;
+        }
+        
+        if (imgCounter) {
+          imgCounter.textContent = idx + 1;
+        }
+        
+        if (prevBtn) {
+          prevBtn.style.display = idx > 0 ? 'block' : 'none';
+        }
+        
+        if (nextBtn) {
+          nextBtn.style.display = idx < allImages.length - 1 ? 'block' : 'none';
+        }
+        
+        currentIndex = idx;
+      }
+      
+      // Previous button functionality
+      const prevBtn = document.getElementById('prev-btn');
+      if (prevBtn) {
+        prevBtn.addEventListener('click', (evt) => {
+          evt.stopPropagation();
+          if (currentIndex > 0) {
+            updateImage(currentIndex - 1);
+          }
+        });
+      }
+      
+      // Next button functionality
+      const nextBtn = document.getElementById('next-btn');
+      if (nextBtn) {
+        nextBtn.addEventListener('click', (evt) => {
+          evt.stopPropagation();
+          if (currentIndex < allImages.length - 1) {
+            updateImage(currentIndex + 1);
+          }
+        });
+      }
+      
+      // Keyboard navigation
+      function handleKeyDown(e) {
+        if (e.key === 'Escape') {
+          document.body.removeChild(viewerModal);
+          document.body.style.overflow = '';
+          document.removeEventListener('keydown', handleKeyDown);
+        } else if (e.key === 'ArrowLeft' && currentIndex > 0) {
+          updateImage(currentIndex - 1);
+        } else if (e.key === 'ArrowRight' && currentIndex < allImages.length - 1) {
+          updateImage(currentIndex + 1);
+        }
+      }
+      
+      document.addEventListener('keydown', handleKeyDown);
+    });
+    
     // Add event listeners for image actions
     const setPreviewBtn = imageContainer.querySelector('.set-preview-btn');
     setPreviewBtn.addEventListener('click', (e) => {

@@ -208,6 +208,26 @@ async function removeTagFromPrompt(promptId, tag) {
   return existingPrompt;
 }
 
+/**
+ * Get all unique tags across all prompts
+ * @returns {Promise<Array>} - Array of unique tags
+ */
+async function getAllUniqueTags() {
+  const prompts = await getAllPrompts();
+  
+  // Collect all tags from all prompts
+  const allTags = [];
+  prompts.forEach(prompt => {
+    if (prompt.tags && Array.isArray(prompt.tags)) {
+      allTags.push(...prompt.tags);
+    }
+  });
+  
+  // Return unique tags sorted alphabetically
+  return [...new Set(allTags)].sort();
+}
+
+// Add this to the module.exports
 module.exports = {
   getAllPrompts,
   getPromptById,
@@ -216,5 +236,6 @@ module.exports = {
   deletePrompt,
   getPromptWithImages,
   addTagToPrompt,
-  removeTagFromPrompt
+  removeTagFromPrompt,
+  getAllUniqueTags  // Add this new method
 };

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const promptService = require('../services/promptService');
+const tagService = require('../services/tagService');
 const sdApi = require('../services/sdApi');
 const imageStorage = require('../services/imageStorage');
 const axios = require('axios');
@@ -185,6 +186,53 @@ router.get('/models', async (req, res) => {
   }
 });
 
+// ===== GLOBAL TAGS API ENDPOINTS =====
+
+// Get all global tags
+router.get('/tags', async (req, res) => {
+  try {
+    const tags = await tagService.getAllTags();
+    res.json({ success: true, tags });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Add a global tag
+router.post('/tags', async (req, res) => {
+  try {
+    if (!req.body.tag) {
+      return res.status(400).json({ success: false, message: 'Tag value is required' });
+    }
+    
+    const updatedTags = await tagService.addTag(req.body.tag);
+    res.json({ success: true, tags: updatedTags });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Remove a global tag
+router.delete('/tags/:tag', async (req, res) => {
+  try {
+    const updatedTags = await tagService.removeTag(req.params.tag);
+    res.json({ success: true, tags: updatedTags });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Import existing tags from all prompts
+router.post('/tags/import', async (req, res) => {
+  try {
+    const prompts = await promptService.getAllPrompts();
+    const updatedTags = await tagService.importExistingTags(prompts);
+    res.json({ success: true, tags: updatedTags });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Add a tag to a prompt
 router.post('/prompts/:id/tags', async (req, res) => {
   try {
@@ -192,6 +240,10 @@ router.post('/prompts/:id/tags', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Tag value is required' });
     }
     
+    // First, add tag to global list
+    await tagService.addTag(req.body.tag);
+    
+    // Then add to the prompt
     const updatedPrompt = await promptService.addTagToPrompt(req.params.id, req.body.tag);
     res.json({ success: true, prompt: updatedPrompt });
   } catch (error) {

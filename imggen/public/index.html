@@ -6,6 +6,7 @@
   <title>Stable Diffusion Gallery</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="image-viewer.css">
 </head>
 <body>
   <header>
@@ -49,6 +50,40 @@
             <button type="submit" class="btn primary"><i class="fas fa-plus-circle"></i> Create Prompt</button>
           </div>
         </form>
+      </div>
+    </section>
+
+    <!-- Tag Management Section -->
+    <section id="tag-management-section" class="card collapsible-section">
+      <div class="collapsible-header">
+        <h2><i class="fas fa-tags"></i> Tag Management</h2>
+        <button type="button" class="btn-toggle"><i class="fas fa-chevron-down"></i></button>
+      </div>
+      <div class="collapsible-content" style="display: none;">
+        <div class="global-tags-info">
+          <p>Tags are now shared between all prompts. When you add a tag to any prompt, it becomes available to all prompts.</p>
+        </div>
+        <div class="global-tags-display">
+          <h3>All Available Tags</h3>
+          <div id="global-tags-list" class="tags-display">
+            <p class="loading-tags">Loading tags...</p>
+          </div>
+        </div>
+        <div class="form-row" style="margin-top: 1rem;">
+          <div class="form-group" style="flex: 2;">
+            <input type="text" id="new-global-tag" placeholder="Enter a new tag">
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <button id="add-global-tag-btn" class="btn success">
+              <i class="fas fa-plus"></i> Add Global Tag
+            </button>
+          </div>
+        </div>
+        <div class="tag-management-actions" style="margin-top: 1rem;">
+          <button id="import-existing-tags-btn" class="btn secondary">
+            <i class="fas fa-download"></i> Import Existing Tags
+          </button>
+        </div>
       </div>
     </section>
 
@@ -142,10 +177,211 @@
     </div>
   </div>
 
+  <!-- Image Viewer Modal (will be created dynamically) -->
+  <!-- This is just the placeholder, the actual content will be injected by JS -->
+
   <!-- Toast Notifications -->
   <div id="toast-container" class="toast-container"></div>
 
   <!-- Scripts -->
   <script src="script.js"></script>
+  <script src="shared-tags.js"></script>
+  <script src="image-viewer.js"></script>
+  
+  <!-- Additional Script for Tag Management -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Fetch and display global tags in the management section
+      async function displayGlobalTags() {
+        const globalTagsList = document.getElementById('global-tags-list');
+        if (!globalTagsList) return;
+        
+        try {
+          const response = await fetch('/api/tags');
+          const data = await response.json();
+          
+          if (data.success) {
+            const tags = data.tags || [];
+            
+            if (tags.length === 0) {
+              globalTagsList.innerHTML = '<p class="no-tags-message">No tags yet. Add your first tag or import existing tags.</p>';
+            } else {
+              globalTagsList.innerHTML = '';
+              
+              tags.forEach(tag => {
+                const tagElement = document.createElement('div');
+                tagElement.className = 'global-tag-item';
+                tagElement.innerHTML = `
+                  <span>${tag}</span>
+                `;
+                globalTagsList.appendChild(tagElement);
+              });
+            }
+          } else {
+            globalTagsList.innerHTML = '<p class="error-message">Error loading tags: ' + data.message + '</p>';
+          }
+        } catch (error) {
+          globalTagsList.innerHTML = '<p class="error-message">Error loading tags: ' + error.message + '</p>';
+        }
+      }
+      
+      // Add event listener for adding a new global tag
+      const addGlobalTagBtn = document.getElementById('add-global-tag-btn');
+      if (addGlobalTagBtn) {
+        addGlobalTagBtn.addEventListener('click', async function() {
+          const tagInput = document.getElementById('new-global-tag');
+          const tag = tagInput.value.trim();
+          
+          if (!tag) return;
+          
+          try {
+            const response = await fetch('/api/tags', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ tag })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+              tagInput.value = '';
+              globalTags = data.tags;
+              displayGlobalTags();
+              updateAllTagDropdowns();
+              showToast('success', `Tag "${tag}" added to global list`);
+            } else {
+              showToast('error', 'Error adding tag: ' + data.message);
+            }
+          } catch (error) {
+            showToast('error', 'Error adding tag: ' + error.message);
+          }
+        });
+      }
+      
+      // Add event listener for importing existing tags
+      const importTagsBtn = document.getElementById('import-existing-tags-btn');
+      if (importTagsBtn) {
+        importTagsBtn.addEventListener('click', async function() {
+          try {
+            importTagsBtn.disabled = true;
+            const response = await fetch('/api/tags/import', {
+              method: 'POST'
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+              globalTags = data.tags;
+              displayGlobalTags();
+              updateAllTagDropdowns();
+              showToast('success', 'Imported existing tags from all prompts');
+            } else {
+              showToast('error', 'Error importing tags: ' + data.message);
+            }
+          } catch (error) {
+            showToast('error', 'Error importing tags: ' + error.message);
+          } finally {
+            importTagsBtn.disabled = false;
+          }
+        });
+      }
+      
+      // Display global tags on page load
+      displayGlobalTags();
+    });
+  </script>
+  <script>
+// This runs after the page loads
+document.addEventListener('DOMContentLoaded', function() {
+  // Override the existing renderImageGallery function
+  window.renderImageGallery = function(images, previewImage) {
+    const imageGallery = document.getElementById('image-gallery');
+    imageGallery.innerHTML = '';
+    
+    if (images.length === 0) {
+      imageGallery.innerHTML = `
+        <div class="no-images-message">
+          <p>No images generated yet. Click "Generate Images" to create some!</p>
+        </div>
+      `;
+      return;
+    }
+    
+    images.forEach(image => {
+      const isPreview = previewImage && previewImage.includes(image.filename);
+      
+      const imageContainer = document.createElement('div');
+      imageContainer.className = `image-container ${isPreview ? 'is-preview' : ''}`;
+      imageContainer.dataset.imageId = image.id;
+      
+      // Use direct inline onclick attribute
+      imageContainer.innerHTML = `
+        <img src="${image.path}" alt="Generated image" onclick="viewFullImage('${image.path}')">
+        <div class="image-actions">
+          <button class="btn sm primary set-preview-btn" title="Set as preview">
+            <i class="fas fa-star"></i>
+          </button>
+          <button class="btn sm danger delete-image-btn" title="Delete image">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      `;
+      
+      // Add event listeners for action buttons
+      const setPreviewBtn = imageContainer.querySelector('.set-preview-btn');
+      setPreviewBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.setPreviewImage(image.id);
+      });
+      
+      const deleteImageBtn = imageContainer.querySelector('.delete-image-btn');
+      deleteImageBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.deleteImage(image.id);
+      });
+      
+      imageGallery.appendChild(imageContainer);
+    });
+  };
+  
+  // Add a global function for viewing the full image
+  window.viewFullImage = function(imagePath) {
+    const modal = document.createElement('div');
+    modal.style.position = 'fixed';
+    modal.style.top = '0';
+    modal.style.left = '0';
+    modal.style.width = '100%';
+    modal.style.height = '100%';
+    modal.style.backgroundColor = 'rgba(0,0,0,0.9)';
+    modal.style.zIndex = '9999';
+    modal.style.display = 'flex';
+    modal.style.justifyContent = 'center';
+    modal.style.alignItems = 'center';
+    
+    modal.innerHTML = `
+      <img src="${imagePath}" style="max-width: 90%; max-height: 90%;">
+      <button style="position: absolute; top: 20px; right: 20px; background: none; border: none; color: white; font-size: 30px; cursor: pointer;">&times;</button>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Close button
+    const closeBtn = modal.querySelector('button');
+    closeBtn.onclick = function(e) {
+      e.stopPropagation();
+      document.body.removeChild(modal);
+    };
+    
+    // Close on background click
+    modal.onclick = function(e) {
+      if (e.target === modal) {
+        document.body.removeChild(modal);
+      }
+    };
+  };
+});
+</script>
 </body>
 </html>
