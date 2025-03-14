@@ -14,14 +14,14 @@ const SD_API_URL = 'http://localhost:7860/sdapi/v1';
  */
 async function generateImages(promptData, count = 1) {
   try {
-    // Define payload first before any logging or use
+    // Define payload with dynamic dimensions if provided
     const payload = {
       prompt: `${promptData.prompt} <lora:dmd2_sdxl_4step_lora_fp16:1>`,
       negative_prompt: promptData.negativePrompt || "",
       steps: 7,
       cfg_scale: 1,
-      width: 640,
-      height: 960,
+      width: promptData.width || 640,
+      height: promptData.height || 960,
       save_images: true,
       sampler_name: "LCM",
       scheduler: "Automatic",

@@ -101,6 +101,12 @@ router.post('/prompts/:id/generate', async (req, res) => {
       modifiedPrompt.prompt = `${prompt.prompt} ${req.body.tags.join(' ')}`;
     }
     
+    // Add width and height if provided
+    if (req.body.width && req.body.height) {
+      modifiedPrompt.width = req.body.width;
+      modifiedPrompt.height = req.body.height;
+    }
+    
     // Generate images
     const count = req.body.count || 1;
     const images = await sdApi.generateImages(modifiedPrompt, count);
@@ -122,6 +128,12 @@ router.post('/prompts/:id/generate-temp', async (req, res) => {
     if (req.body.tags && req.body.tags.length > 0) {
       // Append tags to the prompt text
       modifiedPrompt.prompt = `${prompt.prompt} ${req.body.tags.join(' ')}`;
+    }
+    
+    // Add width and height if provided
+    if (req.body.width && req.body.height) {
+      modifiedPrompt.width = req.body.width;
+      modifiedPrompt.height = req.body.height;
     }
     
     // Generate a single image

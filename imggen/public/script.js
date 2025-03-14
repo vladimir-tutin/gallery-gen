@@ -549,6 +549,9 @@ function renderPromptCards(prompts) {
     // Set up enhanced mobile navigation
     enhanceMobileCardNavigation();
   }
+
+  // Apply saved size classes to cards
+  applySavedSizeClassesToCards();
 }
 
 // Fixed createTagDropdown function that attaches dropdown to the card
@@ -1019,6 +1022,10 @@ async function generateImages() {
   
   const imageCount = parseInt(imageCountSlider.value);
   
+  // Get selected image size
+  const sizeOption = document.querySelector('input[name="image-size"]:checked').value;
+  const dimensions = getImageDimensions(sizeOption);
+  
   // Get selected tags, if any
   const selectedTags = [];
   const tagCheckboxes = document.querySelectorAll(`#modal-tags-list .tag-checkbox:checked`);
@@ -1045,7 +1052,9 @@ async function generateImages() {
       },
       body: JSON.stringify({
         count: imageCount,
-        tags: selectedTags
+        tags: selectedTags,
+        width: dimensions.width,
+        height: dimensions.height
       })
     });
     
@@ -1054,12 +1063,15 @@ async function generateImages() {
     if (data.success) {
       showToast('success', `${imageCount} image${imageCount > 1 ? 's' : ''} generated successfully`);
       
+      // Store the used aspect ratio with the images
+      localStorage.setItem(`prompt_${currentPromptId}_size`, sizeOption);
+      
       // Refresh the image gallery
       const promptResponse = await fetch(`/api/prompts/${currentPromptId}/images`);
       const promptData = await promptResponse.json();
       
       if (promptData.success) {
-        renderImageGallery(promptData.images, promptData.prompt.previewImage);
+        renderImageGallery(promptData.images, promptData.prompt.previewImage, sizeOption);
       } else {
         showToast('warning', 'Generated successfully but failed to refresh gallery');
       }
@@ -1096,6 +1108,14 @@ async function generateImageForCard(promptId) {
     selectedTags.push(checkbox.dataset.tag);
   });
   
+  // Get selected image size (for mobile)
+  let sizeOption = 'portrait'; // Default
+  const mobileSizeInput = document.querySelector('input[name="mobile-image-size"]:checked');
+  if (mobileSizeInput) {
+    sizeOption = mobileSizeInput.value;
+  }
+  const dimensions = getImageDimensions(sizeOption);
+  
   try {
     // Update UI to show generation in progress
     statusElement.textContent = 'Generating...';
@@ -1117,16 +1137,25 @@ async function generateImageForCard(promptId) {
       },
       body: JSON.stringify({
         count: 1,
-        tags: selectedTags
+        tags: selectedTags,
+        width: dimensions.width,
+        height: dimensions.height
       })
     });
     
     const data = await response.json();
     
     if (data.success && data.images && data.images.length > 0) {
+      // Store the used aspect ratio with the card
+      localStorage.setItem(`prompt_${promptId}_size`, sizeOption);
+      
       // Update the card image with the new temporary image
       const image = data.images[0];
       cardImage.innerHTML = `<img src="${image.path}" alt="Generated image">`;
+      
+      // Apply the correct aspect ratio class to the card image
+      cardImage.className = `prompt-card-image ${sizeOption}`;
+      cardImage.dataset.promptId = promptId;
       
       // Show success message
       statusElement.textContent = 'Generated!';
@@ -1173,8 +1202,13 @@ async function generateImageForCard(promptId) {
 }
 
 // Render image gallery
-function renderImageGallery(images, previewImage) {
+function renderImageGallery(images, previewImage, sizeOption) {
   imageGallery.innerHTML = '';
+  
+  // If no size option is provided, try to get from localStorage
+  if (!sizeOption && currentPromptId) {
+    sizeOption = localStorage.getItem(`prompt_${currentPromptId}_size`) || 'portrait';
+  }
   
   if (images.length === 0) {
     imageGallery.innerHTML = `
@@ -1189,7 +1223,7 @@ function renderImageGallery(images, previewImage) {
     const isPreview = previewImage && previewImage.includes(image.filename);
     
     const imageContainer = document.createElement('div');
-    imageContainer.className = `image-container ${isPreview ? 'is-preview' : ''}`;
+    imageContainer.className = `image-container ${sizeOption || 'portrait'} ${isPreview ? 'is-preview' : ''}`;
     imageContainer.dataset.imageId = image.id;
     
     imageContainer.innerHTML = `
@@ -1203,13 +1237,6 @@ function renderImageGallery(images, previewImage) {
         </button>
       </div>
     `;
-    
-    // Add click event handler for the image itself
-    const img = imageContainer.querySelector('img');
-    img.addEventListener('click', function(e) {
-      e.stopPropagation();
-      viewFullImage(image.path);
-    });
     
     // Add event listeners for image actions
     const setPreviewBtn = imageContainer.querySelector('.set-preview-btn');
@@ -1226,6 +1253,16 @@ function renderImageGallery(images, previewImage) {
     
     imageGallery.appendChild(imageContainer);
   });
+  
+  // Add this after rendering the image gallery
+  // Set the saved size option if available
+  const savedSizeOption = localStorage.getItem(`prompt_${promptId}_size`);
+  if (savedSizeOption) {
+    const sizeRadio = document.querySelector(`input[name="image-size"][value="${savedSizeOption}"]`);
+    if (sizeRadio) {
+      sizeRadio.checked = true;
+    }
+  }
 }
 
 // Set preview image
@@ -1566,6 +1603,27 @@ function updateActiveCard() {
     }
   }
 }
+
+// Apply saved size classes to prompt cards
+function applySavedSizeClassesToCards() {
+  const cards = document.querySelectorAll('.prompt-card');
+  cards.forEach(card => {
+    const promptId = card.dataset.promptId;
+    if (promptId) {
+      const savedSize = localStorage.getItem(`prompt_${promptId}_size`);
+      if (savedSize) {
+        const imageContainer = card.querySelector('.prompt-card-image');
+        if (imageContainer) {
+          // Remove any existing size classes
+          imageContainer.classList.remove('portrait', 'square', 'landscape', 'wide');
+          // Add the saved size class
+          imageContainer.classList.add(savedSize);
+        }
+      }
+    }
+  });
+}
+
 // Create the tag modal
 function createTagModal() {
   // Remove any existing modal first to avoid duplicates
@@ -1664,6 +1722,15 @@ function openTagModal() {
   // Show the modal
   updatedModal.style.display = 'block';
   document.body.style.overflow = 'hidden';
+
+  // Set the saved size option for mobile
+  const savedSizeOption = localStorage.getItem(`prompt_${promptId}_size`);
+  if (savedSizeOption) {
+    const mobileSizeRadio = document.querySelector(`input[name="mobile-image-size"][value="${savedSizeOption}"]`);
+    if (mobileSizeRadio) {
+      mobileSizeRadio.checked = true;
+    }
+  }
 }
 
 // Close the tag modal
@@ -1977,6 +2044,22 @@ function handleMobileScroll() {
   const cardsContainer = document.getElementById('prompt-cards');
   if (cardsContainer) {
     cardsContainer.classList.add('has-scrolled');
+  }
+}
+
+// Map aspect ratios to dimensions
+function getImageDimensions(sizeOption) {
+  switch (sizeOption) {
+    case 'portrait':
+      return { width: 640, height: 960 }; // 2:3 ratio
+    case 'square':
+      return { width: 768, height: 768 }; // 1:1 ratio
+    case 'landscape':
+      return { width: 960, height: 640 }; // 3:2 ratio
+    case 'wide':
+      return { width: 960, height: 540 }; // 16:9 ratio
+    default:
+      return { width: 640, height: 960 }; // Default to portrait
   }
 }
 

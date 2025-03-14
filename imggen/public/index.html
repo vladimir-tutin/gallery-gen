@@ -117,6 +117,48 @@
               <input type="range" id="image-count" min="1" max="4" value="1" step="1">
               <span id="image-count-label">1</span>
             </div>
+            <div class="image-size-settings">
+              <label for="image-size">Aspect Ratio:</label>
+              <div class="image-size-options">
+                <label class="size-option">
+                  <input type="radio" name="image-size" value="portrait" checked>
+                  <span>Portrait (2:3)</span>
+                </label>
+                <label class="size-option">
+                  <input type="radio" name="image-size" value="square">
+                  <span>Square (1:1)</span>
+                </label>
+                <label class="size-option">
+                  <input type="radio" name="image-size" value="landscape">
+                  <span>Landscape (3:2)</span>
+                </label>
+                <label class="size-option">
+                  <input type="radio" name="image-size" value="wide">
+                  <span>Wide (16:9)</span>
+                </label>
+              </div>
+            </div>
+            <div class="mobile-image-size">
+              <h4>Image Size</h4>
+              <div class="mobile-size-options">
+                <label class="mobile-size-option">
+                  <input type="radio" name="mobile-image-size" value="portrait" checked>
+                  <span>Portrait (2:3)</span>
+                </label>
+                <label class="mobile-size-option">
+                  <input type="radio" name="mobile-image-size" value="square">
+                  <span>Square (1:1)</span>
+                </label>
+                <label class="mobile-size-option">
+                  <input type="radio" name="mobile-image-size" value="landscape">
+                  <span>Landscape (3:2)</span>
+                </label>
+                <label class="mobile-size-option">
+                  <input type="radio" name="mobile-image-size" value="wide">
+                  <span>Wide (16:9)</span>
+                </label>
+              </div>
+            </div>
             <button id="generate-images-btn" class="btn success">
               <i class="fas fa-magic"></i> Generate Images
             </button>
