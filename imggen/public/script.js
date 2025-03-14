@@ -1402,58 +1402,50 @@ function setupMobileButtons() {
   // Only run on mobile devices
   if (!isMobileDevice()) return;
   
-  // Remove existing mobile generate button if it exists
-  const existingGenerateBtn = document.getElementById('mobile-generate-btn');
-  if (existingGenerateBtn && existingGenerateBtn.parentElement && existingGenerateBtn.parentElement.id !== 'mobile-buttons-container') {
-    existingGenerateBtn.parentElement.remove();
+  console.log('Setting up mobile buttons');
+  
+  // Remove existing mobile buttons if they exist
+  const existingContainer = document.getElementById('mobile-buttons-container');
+  if (existingContainer) {
+    existingContainer.remove();
   }
   
-  // Check if the container already exists
-  let buttonsContainer = document.getElementById('mobile-buttons-container');
+  // Create the container
+  const buttonsContainer = document.createElement('div');
+  buttonsContainer.id = 'mobile-buttons-container';
+  buttonsContainer.className = 'mobile-buttons-container';
   
-  // Create the container if it doesn't exist
-  if (!buttonsContainer) {
-    buttonsContainer = document.createElement('div');
-    buttonsContainer.id = 'mobile-buttons-container';
-    buttonsContainer.className = 'mobile-buttons-container';
-    
-    // Add generate and tag buttons
-    buttonsContainer.innerHTML = `
-      <button id="mobile-generate-btn" class="btn mobile-generate-btn">
-        <i class="fas fa-magic"></i> Generate Image
-      </button>
-      <button id="mobile-tag-btn" class="btn mobile-tag-btn">
-        <i class="fas fa-tags"></i>
-      </button>
-    `;
-    
-    document.body.appendChild(buttonsContainer);
-    
-    // Create tag modal
-    createTagModal();
-    
-    // Add click event for tag button
-    const tagBtn = document.getElementById('mobile-tag-btn');
-    if (tagBtn) {
-      tagBtn.addEventListener('click', function() {
-        openTagModal();
-      });
+  // Add generate and tag buttons
+  buttonsContainer.innerHTML = `
+    <button id="mobile-generate-btn" class="btn mobile-generate-btn">
+      <i class="fas fa-magic"></i> Generate Image
+    </button>
+    <button id="mobile-tag-btn" class="btn mobile-tag-btn">
+      <i class="fas fa-tags"></i>
+    </button>
+  `;
+  
+  document.body.appendChild(buttonsContainer);
+  
+  // Create tag modal
+  createTagModal();
+  
+  // Add click event for generate button - using direct selector to ensure it's found
+  document.getElementById('mobile-generate-btn').addEventListener('click', function() {
+    const activeCard = document.querySelector('.prompt-card.active-card');
+    if (activeCard) {
+      const promptId = activeCard.dataset.promptId;
+      generateImageForCard(promptId);
+    } else {
+      showToast('error', 'Could not determine which prompt to use');
     }
-  }
+  });
   
-  // Add click event for generate button
-  const generateBtn = document.getElementById('mobile-generate-btn');
-  if (generateBtn) {
-    generateBtn.addEventListener('click', function() {
-      const visibleCard = document.querySelector('.prompt-card.active-card');
-      if (visibleCard) {
-        const promptId = visibleCard.dataset.promptId;
-        generateImageForCard(promptId);
-      } else {
-        showToast('error', 'Could not determine which prompt to use');
-      }
-    });
-  }
+  // Add click event for tag button - using direct selector to ensure it's found
+  document.getElementById('mobile-tag-btn').addEventListener('click', function() {
+    console.log('Tag button clicked');
+    openTagModal();
+  });
   
   // Initially hide the container until cards are loaded
   buttonsContainer.style.display = 'none';
@@ -1461,11 +1453,31 @@ function setupMobileButtons() {
   // Set up listeners for scroll to update active card
   const promptCardsContainer = document.getElementById('prompt-cards');
   if (promptCardsContainer) {
-    promptCardsContainer.addEventListener('scroll', handleCardScroll);
+    promptCardsContainer.addEventListener('scroll', updateActiveCardOnScroll);
   }
   
   // Initial update
   setTimeout(updateActiveCard, 500);
+  
+  console.log('Mobile buttons setup complete');
+}
+
+// Throttle scrolling events to improve performance
+let scrollTimeout;
+function updateActiveCardOnScroll() {
+  if (scrollTimeout) {
+    clearTimeout(scrollTimeout);
+  }
+  
+  scrollTimeout = setTimeout(function() {
+    updateActiveCard();
+  }, 100); // 100ms throttle
+}
+
+// Function to get the current active prompt ID
+function getCurrentActivePromptId() {
+  const activeCard = document.querySelector('.prompt-card.active-card');
+  return activeCard ? activeCard.dataset.promptId : null;
 }
 
 // Update mobile buttons based on active card
@@ -1501,22 +1513,68 @@ function updateMobileButtons() {
 }
 
 // Update the active card
+// Update the active card and mobile buttons
 function updateActiveCard() {
-  const now = Date.now();
-  if (now - lastUpdateTime < updateThrottleTime) {
-    return; // Skip this update if too soon after the last one
-  }
-  lastUpdateTime = now;
+  const cards = document.querySelectorAll('.prompt-card');
+  if (cards.length === 0) return;
   
-  updateScrollIndicators(); // This will also set the active-card class
-  updateMobileButtons(); // Update the mobile buttons based on active card
+  const buttonsContainer = document.getElementById('mobile-buttons-container');
+  if (!buttonsContainer) return;
+  
+  // Show the buttons since we have cards
+  buttonsContainer.style.display = 'flex';
+  
+  // Find the card that's most visible in the viewport
+  let currentCard = null;
+  let maxVisibility = 0;
+  
+  cards.forEach(card => {
+    const rect = card.getBoundingClientRect();
+    
+    // Calculate visibility (how much of the card is in the viewport)
+    const cardLeft = Math.max(0, rect.left);
+    const cardRight = Math.min(window.innerWidth, rect.right);
+    const visibleWidth = Math.max(0, cardRight - cardLeft);
+    
+    if (visibleWidth > maxVisibility) {
+      maxVisibility = visibleWidth;
+      currentCard = card;
+    }
+  });
+  
+  // Mark the current card as active for visual feedback
+  cards.forEach(card => card.classList.remove('active-card'));
+  if (currentCard) {
+    currentCard.classList.add('active-card');
+    
+    // Get the prompt ID from the active card
+    const promptId = currentCard.dataset.promptId;
+    
+    // Store the prompt ID as a data attribute on the buttons container
+    buttonsContainer.dataset.promptId = promptId;
+    
+    // Update generate button text with the prompt name
+    const generateBtn = document.getElementById('mobile-generate-btn');
+    if (generateBtn) {
+      const cardTitle = currentCard.querySelector('.prompt-card-title');
+      if (cardTitle) {
+        const cardName = cardTitle.textContent.trim();
+        generateBtn.innerHTML = `<i class="fas fa-magic"></i> Generate${cardName.length > 12 ? '' : ' "' + cardName.substring(0, 12) + (cardName.length > 12 ? '...' : '') + '"'}`;
+      } else {
+        generateBtn.innerHTML = `<i class="fas fa-magic"></i> Generate Image`;
+      }
+    }
+  }
 }
-
 // Create the tag modal
 function createTagModal() {
-  // Check if modal already exists
-  if (document.getElementById('mobile-tag-modal')) return;
-  
+  // Remove any existing modal first to avoid duplicates
+  const existingModal = document.getElementById('mobile-tag-modal');
+  if (existingModal) {
+    existingModal.remove();
+  }
+
+  // Create new modal
   const modal = document.createElement('div');
   modal.id = 'mobile-tag-modal';
   modal.className = 'mobile-tag-modal';
@@ -1529,6 +1587,7 @@ function createTagModal() {
       </div>
       <div class="mobile-tag-list" id="mobile-tag-list">
         <!-- Tags will be populated here -->
+        <div class="loading-tags">Loading tags...</div>
       </div>
       <div class="mobile-add-tag-container">
         <input type="text" class="mobile-add-tag-input" id="mobile-add-tag-input" placeholder="Add new tag">
@@ -1544,17 +1603,10 @@ function createTagModal() {
   document.body.appendChild(modal);
   
   // Add event listeners
-  const closeBtn = modal.querySelector('.mobile-tag-modal-close');
-  closeBtn.addEventListener('click', closeTagModal);
-  
-  const cancelBtn = document.getElementById('mobile-tag-cancel');
-  cancelBtn.addEventListener('click', closeTagModal);
-  
-  const applyBtn = document.getElementById('mobile-tag-apply');
-  applyBtn.addEventListener('click', applyTags);
-  
-  const addTagBtn = document.getElementById('mobile-add-tag-btn');
-  addTagBtn.addEventListener('click', addNewTag);
+  modal.querySelector('.mobile-tag-modal-close').addEventListener('click', closeTagModal);
+  document.getElementById('mobile-tag-cancel').addEventListener('click', closeTagModal);
+  document.getElementById('mobile-tag-apply').addEventListener('click', applyTags);
+  document.getElementById('mobile-add-tag-btn').addEventListener('click', addNewTag);
   
   const addTagInput = document.getElementById('mobile-add-tag-input');
   addTagInput.addEventListener('keypress', function(e) {
@@ -1571,33 +1623,37 @@ function createTagModal() {
   });
 }
 
-// Open the tag modal and populate it with the current card's tags
 function openTagModal() {
+  console.log('Opening tag modal');
   const modal = document.getElementById('mobile-tag-modal');
-  if (!modal) return;
   
-  // Get the active card
+  // If modal doesn't exist, create it
+  if (!modal) {
+    createTagModal();
+  }
+  
   const activeCard = document.querySelector('.prompt-card.active-card');
   if (!activeCard) {
-    showToast('error', 'No active card found');
+    showToast('error', 'Please select a prompt first');
     return;
   }
   
   const promptId = activeCard.dataset.promptId;
   if (!promptId) {
-    showToast('error', 'Could not determine prompt ID');
+    showToast('error', 'Could not identify the selected prompt');
     return;
   }
   
   // Store the prompt ID on the modal
-  modal.dataset.promptId = promptId;
+  const updatedModal = document.getElementById('mobile-tag-modal');
+  updatedModal.dataset.promptId = promptId;
   
   // Get card title for the header
   const cardTitle = activeCard.querySelector('.prompt-card-title');
   const cardName = cardTitle ? cardTitle.textContent.trim() : 'Prompt';
   
   // Update modal header
-  const header = modal.querySelector('.mobile-tag-modal-header h3');
+  const header = updatedModal.querySelector('.mobile-tag-modal-header h3');
   if (header) {
     header.textContent = `Tags for "${cardName}"`;
   }
@@ -1606,8 +1662,8 @@ function openTagModal() {
   fetchTagsForModal(promptId);
   
   // Show the modal
-  modal.style.display = 'block';
-  document.body.style.overflow = 'hidden'; // Prevent scrolling behind modal
+  updatedModal.style.display = 'block';
+  document.body.style.overflow = 'hidden';
 }
 
 // Close the tag modal
@@ -1799,8 +1855,8 @@ async function applyTags() {
 }
 
 // Enhanced function to handle mobile card navigation
+// Enhanced mobile card navigation
 function enhanceMobileCardNavigation() {
-  // Only run on mobile
   if (!isMobileDevice()) return;
   
   const cardsContainer = document.getElementById('prompt-cards');
@@ -1809,13 +1865,54 @@ function enhanceMobileCardNavigation() {
   // Add scroll indicators for visual feedback
   addScrollIndicators();
   
-  // Remove existing listeners to prevent duplicates
-  cardsContainer.removeEventListener('scroll', handleCardScroll);
+  // Clean up existing event listeners to prevent duplicates
+  cardsContainer.removeEventListener('scroll', handleMobileScroll);
+  cardsContainer.addEventListener('scroll', handleMobileScroll, { passive: true });
   
-  // Update indicators when scrolling with throttling
-  cardsContainer.addEventListener('scroll', handleCardScroll, { passive: true });
+  // Set up snap scrolling by centering cards when they stop scrolling
+  let isScrolling;
+  cardsContainer.addEventListener('scroll', function() {
+    window.clearTimeout(isScrolling);
+    
+    isScrolling = setTimeout(function() {
+      // Scroll has ended, find nearest card and snap to it
+      const cards = Array.from(document.querySelectorAll('.prompt-card'));
+      if (cards.length < 2) return;
+      
+      let closestCard = null;
+      let closestDistance = Infinity;
+      
+      cards.forEach(card => {
+        const rect = card.getBoundingClientRect();
+        const cardCenter = rect.left + rect.width / 2;
+        const screenCenter = window.innerWidth / 2;
+        const distance = Math.abs(cardCenter - screenCenter);
+        
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestCard = card;
+        }
+      });
+      
+      if (closestCard) {
+        closestCard.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
+          inline: 'center'
+        });
+      }
+    }, 150);
+  }, { passive: true });
   
-  // Add swipe navigation (optional)
+  // Handle swipe gestures
+  setupSwipeNavigation();
+}
+
+// Set up swipe navigation
+function setupSwipeNavigation() {
+  const cardsContainer = document.getElementById('prompt-cards');
+  if (!cardsContainer) return;
+  
   let startX, startTime;
   
   cardsContainer.addEventListener('touchstart', function(e) {
@@ -1836,48 +1933,51 @@ function enhanceMobileCardNavigation() {
       const cards = document.querySelectorAll('.prompt-card');
       if (cards.length < 2) return;
       
-      // Find the current card
-      let currentCardIndex = 0;
-      let maxVisibility = 0;
+      // Get current card
+      const activeCard = document.querySelector('.prompt-card.active-card');
+      if (!activeCard) return;
       
-      cards.forEach((card, index) => {
-        const rect = card.getBoundingClientRect();
-        const visibility = Math.min(
-          rect.right, 
-          window.innerWidth
-        ) - Math.max(rect.left, 0);
-        
-        if (visibility > maxVisibility) {
-          maxVisibility = visibility;
-          currentCardIndex = index;
-        }
-      });
+      // Get index of current card
+      const cards_array = Array.from(cards);
+      const currentIndex = cards_array.indexOf(activeCard);
       
       // Calculate target card based on swipe direction
-      let targetCardIndex;
+      let targetIndex;
       if (deltaX > 0) {
         // Swiped right, go to previous card
-        targetCardIndex = Math.max(0, currentCardIndex - 1);
+        targetIndex = Math.max(0, currentIndex - 1);
       } else {
         // Swiped left, go to next card
-        targetCardIndex = Math.min(cards.length - 1, currentCardIndex + 1);
+        targetIndex = Math.min(cards.length - 1, currentIndex + 1);
       }
       
       // Scroll to the target card
-      if (targetCardIndex !== currentCardIndex) {
-        cards[targetCardIndex].scrollIntoView({ 
-          behavior: 'smooth', 
+      if (targetIndex !== currentIndex) {
+        cards[targetIndex].scrollIntoView({
+          behavior: 'smooth',
           block: 'nearest',
           inline: 'center'
         });
         
-        // Update the active card after scroll animation completes
+        // Update buttons after animation completes
         setTimeout(updateActiveCard, 500);
       }
     }
     
     startX = null;
   }, { passive: true });
+}
+
+// Handle scrolling on mobile
+function handleMobileScroll() {
+  updateScrollIndicators();
+  updateActiveCard();
+  
+  // Mark the container as having been scrolled to hide the hint
+  const cardsContainer = document.getElementById('prompt-cards');
+  if (cardsContainer) {
+    cardsContainer.classList.add('has-scrolled');
+  }
 }
 
 // Event Listeners
