@@ -25,6 +25,8 @@ const imageGenerationStatus = document.getElementById('image-generation-status')
 // Global state
 let currentPromptId = null;
 let prompts = [];
+let lastUpdateTime = 0;
+const updateThrottleTime = 300; // ms between updates
 
 // Detect if we're on a mobile device for different drag behavior
 function isMobileDevice() {
@@ -261,7 +263,7 @@ function initDragAndDrop() {
     
     // Update indicators when scrolling
     cardsContainer.addEventListener('scroll', () => {
-      updateScrollIndicators();
+      handleCardScroll();
     });
   }
 }
@@ -339,8 +341,35 @@ function updateScrollIndicators() {
     }
   });
   
-  // Also update the mobile generate button
-  updateMobileGenerateButton();
+  // Add active-card class to the most visible card
+  cards.forEach((card, index) => {
+    if (index === activeIndex) {
+      card.classList.add('active-card');
+    } else {
+      card.classList.remove('active-card');
+    }
+  });
+  
+  // Update mobile buttons if they exist
+  updateMobileButtons();
+}
+
+// Throttled scroll handler
+function handleCardScroll() {
+  const now = Date.now();
+  if (now - lastUpdateTime < updateThrottleTime) {
+    return; // Skip this update if too soon after the last one
+  }
+  
+  updateScrollIndicators();
+  
+  // Mark the container as having been scrolled to hide the hint
+  const cardsContainer = document.getElementById('prompt-cards');
+  if (cardsContainer) {
+    cardsContainer.classList.add('has-scrolled');
+  }
+  
+  lastUpdateTime = now;
 }
 
 // Function to enable touch-based drag and drop on mobile
@@ -514,8 +543,8 @@ function renderPromptCards(prompts) {
       addScrollIndicators();
     }, 100);
     
-    // Set up the mobile generate button
-    setupMobileGenerateButton();
+    // Set up the mobile buttons
+    setupMobileButtons();
     
     // Set up enhanced mobile navigation
     enhanceMobileCardNavigation();
@@ -971,31 +1000,24 @@ async function updatePrompt() {
 
 // Setup generate button
 function setupGenerateButton() {
-  console.log("Setting up generate button");
   const generateImagesBtn = document.getElementById('generate-images-btn');
   
   if (generateImagesBtn) {
-    console.log("Generate button found, adding event listener");
     // Remove any existing event listeners to prevent duplicates
     generateImagesBtn.removeEventListener('click', generateImages);
     // Add the event listener
     generateImagesBtn.addEventListener('click', generateImages);
-  } else {
-    console.error("Generate button not found!");
   }
 }
 
 // Generate images with improved error handling
 async function generateImages() {
-  console.log("Generate button clicked, currentPromptId:", currentPromptId);
-  
   if (!currentPromptId) {
     showToast('error', 'No prompt selected. Please try again.');
     return;
   }
   
   const imageCount = parseInt(imageCountSlider.value);
-  console.log("Generating", imageCount, "images");
   
   // Get selected tags, if any
   const selectedTags = [];
@@ -1003,10 +1025,6 @@ async function generateImages() {
   tagCheckboxes.forEach(checkbox => {
     selectedTags.push(checkbox.dataset.tag);
   });
-  
-  if (selectedTags.length > 0) {
-    console.log("Selected tags:", selectedTags);
-  }
   
   try {
     // Show generation status
@@ -1020,7 +1038,6 @@ async function generateImages() {
       generateImagesBtn.disabled = true;
     }
     
-    console.log(`Sending request to /api/prompts/${currentPromptId}/generate`);
     const response = await fetch(`/api/prompts/${currentPromptId}/generate`, {
       method: 'POST',
       headers: {
@@ -1033,31 +1050,26 @@ async function generateImages() {
     });
     
     const data = await response.json();
-    console.log("API response:", data);
     
     if (data.success) {
       showToast('success', `${imageCount} image${imageCount > 1 ? 's' : ''} generated successfully`);
       
       // Refresh the image gallery
-      console.log("Refreshing gallery");
       const promptResponse = await fetch(`/api/prompts/${currentPromptId}/images`);
       const promptData = await promptResponse.json();
       
       if (promptData.success) {
         renderImageGallery(promptData.images, promptData.prompt.previewImage);
       } else {
-        console.error("Error refreshing gallery:", promptData);
         showToast('warning', 'Generated successfully but failed to refresh gallery');
       }
       
       // Refresh all prompts to update preview image if needed
       loadPrompts();
     } else {
-      console.error("Generation failed:", data);
       showToast('error', 'Error generating images: ' + (data.message || 'Unknown error'));
     }
   } catch (error) {
-    console.error("Exception in generateImages:", error);
     showToast('error', 'Error generating images: ' + error.message);
   } finally {
     const statusElement = document.getElementById('image-generation-status');
@@ -1089,11 +1101,13 @@ async function generateImageForCard(promptId) {
     statusElement.textContent = 'Generating...';
     if (generateBtn) generateBtn.disabled = true;
     
-    // Also update the mobile generate button if it exists
-    const mobileGenerateBtn = document.getElementById('mobile-generate-btn');
-    if (mobileGenerateBtn) {
-      const button = mobileGenerateBtn.querySelector('button');
-      if (button) button.disabled = true;
+    // Disable mobile buttons if they exist
+    const mobileButtons = document.getElementById('mobile-buttons-container');
+    if (mobileButtons) {
+      const buttons = mobileButtons.querySelectorAll('button');
+      buttons.forEach(button => {
+        button.disabled = true;
+      });
     }
     
     const response = await fetch(`/api/prompts/${promptId}/generate-temp`, {
@@ -1147,11 +1161,13 @@ async function generateImageForCard(promptId) {
   } finally {
     if (generateBtn) generateBtn.disabled = false;
     
-    // Also update the mobile generate button if it exists
-    const mobileGenerateBtn = document.getElementById('mobile-generate-btn');
-    if (mobileGenerateBtn) {
-      const button = mobileGenerateBtn.querySelector('button');
-      if (button) button.disabled = false;
+    // Re-enable mobile buttons if they exist
+    const mobileButtons = document.getElementById('mobile-buttons-container');
+    if (mobileButtons) {
+      const buttons = mobileButtons.querySelectorAll('button');
+      buttons.forEach(button => {
+        button.disabled = false;
+      });
     }
   }
 }
@@ -1188,167 +1204,11 @@ function renderImageGallery(images, previewImage) {
       </div>
     `;
     
-    // Add click event handler for the image itself - ADDED FOR IMAGE VIEWER
+    // Add click event handler for the image itself
     const img = imageContainer.querySelector('img');
     img.addEventListener('click', function(e) {
       e.stopPropagation();
-      
-      // Create full-screen modal for the image
-      const viewerModal = document.createElement('div');
-      viewerModal.className = 'image-viewer-modal';
-      viewerModal.style.position = 'fixed';
-      viewerModal.style.top = '0';
-      viewerModal.style.left = '0';
-      viewerModal.style.width = '100%';
-      viewerModal.style.height = '100%';
-      viewerModal.style.backgroundColor = 'rgba(0, 0, 0, 0.9)';
-      viewerModal.style.display = 'flex';
-      viewerModal.style.justifyContent = 'center';
-      viewerModal.style.alignItems = 'center';
-      viewerModal.style.zIndex = '2000';
-      
-      // Get all images from gallery for navigation
-      const allImages = [];
-      const galleryImages = imageGallery.querySelectorAll('.image-container');
-      let currentIndex = 0;
-      
-      galleryImages.forEach((container, idx) => {
-        const img = container.querySelector('img');
-        if (img) {
-          allImages.push({
-            src: img.src,
-            id: container.dataset.imageId
-          });
-          
-          // Find current image index
-          if (container.dataset.imageId === image.id) {
-            currentIndex = idx;
-          }
-        }
-      });
-      
-      // Add navigation buttons if there are multiple images
-      let prevButton = '';
-      let nextButton = '';
-      
-      if (allImages.length > 1) {
-        prevButton = `
-          <button id="prev-btn" style="position: absolute; left: 20px; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.2); border: none; color: white; width: 50px; height: 50px; border-radius: 50%; font-size: 20px; cursor: pointer; display: ${currentIndex > 0 ? 'block' : 'none'}">
-            <i class="fas fa-chevron-left"></i>
-          </button>
-        `;
-        
-        nextButton = `
-          <button id="next-btn" style="position: absolute; right: 20px; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.2); border: none; color: white; width: 50px; height: 50px; border-radius: 50%; font-size: 20px; cursor: pointer; display: ${currentIndex < allImages.length - 1 ? 'block' : 'none'}">
-            <i class="fas fa-chevron-right"></i>
-          </button>
-        `;
-      }
-      
-      // Add image counter if there are multiple images
-      const counter = allImages.length > 1 ? 
-        `<div style="position: absolute; bottom: 20px; color: white; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 15px;">
-          <span id="img-counter">${currentIndex + 1}</span> of ${allImages.length}
-        </div>` : '';
-      
-      // Create modal content
-      viewerModal.innerHTML = `
-        <div style="position: relative; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center;">
-          <button id="close-btn" style="position: absolute; top: 20px; right: 20px; background: none; border: none; color: white; font-size: 30px; cursor: pointer;">&times;</button>
-          
-          ${prevButton}
-          
-          <img id="fullsize-img" src="${image.path}" style="max-width: 90%; max-height: 90%; object-fit: contain;">
-          
-          ${nextButton}
-          
-          ${counter}
-        </div>
-      `;
-      
-      // Add the modal to the body
-      document.body.appendChild(viewerModal);
-      
-      // Prevent scrolling on the body
-      document.body.style.overflow = 'hidden';
-      
-      // Close button functionality
-      const closeBtn = document.getElementById('close-btn');
-      closeBtn.addEventListener('click', () => {
-        document.body.removeChild(viewerModal);
-        document.body.style.overflow = '';
-      });
-      
-      // Close on background click
-      viewerModal.addEventListener('click', (evt) => {
-        if (evt.target === viewerModal) {
-          document.body.removeChild(viewerModal);
-          document.body.style.overflow = '';
-        }
-      });
-      
-      // Function to update the displayed image
-      function updateImage(idx) {
-        const fullsizeImg = document.getElementById('fullsize-img');
-        const imgCounter = document.getElementById('img-counter');
-        const prevBtn = document.getElementById('prev-btn');
-        const nextBtn = document.getElementById('next-btn');
-        
-        if (fullsizeImg) {
-          fullsizeImg.src = allImages[idx].src;
-        }
-        
-        if (imgCounter) {
-          imgCounter.textContent = idx + 1;
-        }
-        
-        if (prevBtn) {
-          prevBtn.style.display = idx > 0 ? 'block' : 'none';
-        }
-        
-        if (nextBtn) {
-          nextBtn.style.display = idx < allImages.length - 1 ? 'block' : 'none';
-        }
-        
-        currentIndex = idx;
-      }
-      
-      // Previous button functionality
-      const prevBtn = document.getElementById('prev-btn');
-      if (prevBtn) {
-        prevBtn.addEventListener('click', (evt) => {
-          evt.stopPropagation();
-          if (currentIndex > 0) {
-            updateImage(currentIndex - 1);
-          }
-        });
-      }
-      
-      // Next button functionality
-      const nextBtn = document.getElementById('next-btn');
-      if (nextBtn) {
-        nextBtn.addEventListener('click', (evt) => {
-          evt.stopPropagation();
-          if (currentIndex < allImages.length - 1) {
-            updateImage(currentIndex + 1);
-          }
-        });
-      }
-      
-      // Keyboard navigation
-      function handleKeyDown(e) {
-        if (e.key === 'Escape') {
-          document.body.removeChild(viewerModal);
-          document.body.style.overflow = '';
-          document.removeEventListener('keydown', handleKeyDown);
-        } else if (e.key === 'ArrowLeft' && currentIndex > 0) {
-          updateImage(currentIndex - 1);
-        } else if (e.key === 'ArrowRight' && currentIndex < allImages.length - 1) {
-          updateImage(currentIndex + 1);
-        }
-      }
-      
-      document.addEventListener('keydown', handleKeyDown);
+      viewFullImage(image.path);
     });
     
     // Add event listeners for image actions
@@ -1437,6 +1297,45 @@ async function deleteImage(imageId) {
   }
 }
 
+// Function to view a full image
+function viewFullImage(imagePath) {
+  const modal = document.createElement('div');
+  modal.style.position = 'fixed';
+  modal.style.top = '0';
+  modal.style.left = '0';
+  modal.style.width = '100%';
+  modal.style.height = '100%';
+  modal.style.backgroundColor = 'rgba(0,0,0,0.9)';
+  modal.style.zIndex = '9999';
+  modal.style.display = 'flex';
+  modal.style.justifyContent = 'center';
+  modal.style.alignItems = 'center';
+  
+  modal.innerHTML = `
+    <img src="${imagePath}" style="max-width: 90%; max-height: 90%;">
+    <button style="position: absolute; top: 20px; right: 20px; background: none; border: none; color: white; font-size: 30px; cursor: pointer;">&times;</button>
+  `;
+  
+  document.body.appendChild(modal);
+  document.body.style.overflow = 'hidden'; // Prevent scrolling
+  
+  // Close button
+  const closeBtn = modal.querySelector('button');
+  closeBtn.onclick = function(e) {
+    e.stopPropagation();
+    document.body.removeChild(modal);
+    document.body.style.overflow = '';
+  };
+  
+  // Close on background click
+  modal.onclick = function(e) {
+    if (e.target === modal) {
+      document.body.removeChild(modal);
+      document.body.style.overflow = '';
+    }
+  };
+}
+
 // Show toast notification
 function showToast(type, message) {
   const toast = document.createElement('div');
@@ -1498,135 +1397,408 @@ function setupCollapsibleSections() {
   });
 }
 
-// Modify the setupMobileGenerateButton function to ensure the button is always properly initialized
-function setupMobileGenerateButton() {
+// Setup the mobile buttons container with generate and tag buttons
+function setupMobileButtons() {
   // Only run on mobile devices
   if (!isMobileDevice()) return;
   
-  // Remove any existing button first to avoid duplicates
-  const existingBtn = document.getElementById('mobile-generate-btn');
-  if (existingBtn) existingBtn.remove();
-  
-  // Create the fixed generate button
-  const mobileGenerateBtn = document.createElement('div');
-  mobileGenerateBtn.id = 'mobile-generate-btn';
-  mobileGenerateBtn.className = 'mobile-generate-btn';
-  mobileGenerateBtn.innerHTML = `
-    <button class="btn primary">
-      <i class="fas fa-magic"></i> Generate Image
-    </button>
-  `;
-  document.body.appendChild(mobileGenerateBtn);
-  
-  // Initially hide the button until cards are loaded
-  mobileGenerateBtn.style.display = 'none';
-  
-  // Set up listeners for scroll to update button
-  const promptCardsContainer = document.getElementById('prompt-cards');
-  if (promptCardsContainer) {
-    promptCardsContainer.addEventListener('scroll', updateMobileGenerateButton);
+  // Remove existing mobile generate button if it exists
+  const existingGenerateBtn = document.getElementById('mobile-generate-btn');
+  if (existingGenerateBtn && existingGenerateBtn.parentElement && existingGenerateBtn.parentElement.id !== 'mobile-buttons-container') {
+    existingGenerateBtn.parentElement.remove();
   }
   
-  // Initial update after a delay to ensure cards are rendered
-  setTimeout(updateMobileGenerateButton, 500);
+  // Check if the container already exists
+  let buttonsContainer = document.getElementById('mobile-buttons-container');
   
-  // Also force another update after a longer delay to catch any late rendering
-  setTimeout(updateMobileGenerateButton, 2000);
+  // Create the container if it doesn't exist
+  if (!buttonsContainer) {
+    buttonsContainer = document.createElement('div');
+    buttonsContainer.id = 'mobile-buttons-container';
+    buttonsContainer.className = 'mobile-buttons-container';
+    
+    // Add generate and tag buttons
+    buttonsContainer.innerHTML = `
+      <button id="mobile-generate-btn" class="btn mobile-generate-btn">
+        <i class="fas fa-magic"></i> Generate Image
+      </button>
+      <button id="mobile-tag-btn" class="btn mobile-tag-btn">
+        <i class="fas fa-tags"></i>
+      </button>
+    `;
+    
+    document.body.appendChild(buttonsContainer);
+    
+    // Create tag modal
+    createTagModal();
+    
+    // Add click event for tag button
+    const tagBtn = document.getElementById('mobile-tag-btn');
+    if (tagBtn) {
+      tagBtn.addEventListener('click', function() {
+        openTagModal();
+      });
+    }
+  }
   
-  // Add click event directly to the button
-  const button = mobileGenerateBtn.querySelector('button');
-  button.addEventListener('click', function() {
-    const promptId = mobileGenerateBtn.dataset.promptId;
-    if (promptId) {
-      console.log('Generating for prompt ID:', promptId);
-      generateImageForCard(promptId);
-    } else {
-      // If no promptId is set, find the currently visible card
+  // Add click event for generate button
+  const generateBtn = document.getElementById('mobile-generate-btn');
+  if (generateBtn) {
+    generateBtn.addEventListener('click', function() {
       const visibleCard = document.querySelector('.prompt-card.active-card');
       if (visibleCard) {
-        const visiblePromptId = visibleCard.dataset.promptId;
-        console.log('Fallback: Generating for visible prompt ID:', visiblePromptId);
-        generateImageForCard(visiblePromptId);
+        const promptId = visibleCard.dataset.promptId;
+        generateImageForCard(promptId);
       } else {
-        console.error('No active prompt found');
         showToast('error', 'Could not determine which prompt to use');
       }
+    });
+  }
+  
+  // Initially hide the container until cards are loaded
+  buttonsContainer.style.display = 'none';
+  
+  // Set up listeners for scroll to update active card
+  const promptCardsContainer = document.getElementById('prompt-cards');
+  if (promptCardsContainer) {
+    promptCardsContainer.addEventListener('scroll', handleCardScroll);
+  }
+  
+  // Initial update
+  setTimeout(updateActiveCard, 500);
+}
+
+// Update mobile buttons based on active card
+function updateMobileButtons() {
+  const buttonsContainer = document.getElementById('mobile-buttons-container');
+  if (!buttonsContainer) return;
+  
+  const activeCard = document.querySelector('.prompt-card.active-card');
+  if (!activeCard) {
+    buttonsContainer.style.display = 'none';
+    return;
+  }
+  
+  // Show the buttons since we have an active card
+  buttonsContainer.style.display = 'flex';
+  
+  // Store the current prompt ID on the buttons container for later use
+  const promptId = activeCard.dataset.promptId;
+  buttonsContainer.dataset.promptId = promptId;
+  
+  // Update generate button text with the prompt name
+  const generateBtn = document.getElementById('mobile-generate-btn');
+  if (generateBtn) {
+    const cardTitle = activeCard.querySelector('.prompt-card-title');
+    if (cardTitle) {
+      const cardName = cardTitle.textContent.trim();
+      const shortName = cardName.length > 15 ? cardName.substring(0, 12) + '...' : cardName;
+      generateBtn.innerHTML = `<i class="fas fa-magic"></i> Generate "${shortName}"`;
+    } else {
+      generateBtn.innerHTML = `<i class="fas fa-magic"></i> Generate Image`;
+    }
+  }
+}
+
+// Update the active card
+function updateActiveCard() {
+  const now = Date.now();
+  if (now - lastUpdateTime < updateThrottleTime) {
+    return; // Skip this update if too soon after the last one
+  }
+  lastUpdateTime = now;
+  
+  updateScrollIndicators(); // This will also set the active-card class
+  updateMobileButtons(); // Update the mobile buttons based on active card
+}
+
+// Create the tag modal
+function createTagModal() {
+  // Check if modal already exists
+  if (document.getElementById('mobile-tag-modal')) return;
+  
+  const modal = document.createElement('div');
+  modal.id = 'mobile-tag-modal';
+  modal.className = 'mobile-tag-modal';
+  
+  modal.innerHTML = `
+    <div class="mobile-tag-modal-content">
+      <div class="mobile-tag-modal-header">
+        <h3>Prompt Tags</h3>
+        <button class="mobile-tag-modal-close">&times;</button>
+      </div>
+      <div class="mobile-tag-list" id="mobile-tag-list">
+        <!-- Tags will be populated here -->
+      </div>
+      <div class="mobile-add-tag-container">
+        <input type="text" class="mobile-add-tag-input" id="mobile-add-tag-input" placeholder="Add new tag">
+        <button class="mobile-add-tag-btn" id="mobile-add-tag-btn">Add</button>
+      </div>
+      <div class="mobile-tag-actions">
+        <button class="mobile-tag-cancel" id="mobile-tag-cancel">Cancel</button>
+        <button class="mobile-tag-apply" id="mobile-tag-apply">Apply</button>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(modal);
+  
+  // Add event listeners
+  const closeBtn = modal.querySelector('.mobile-tag-modal-close');
+  closeBtn.addEventListener('click', closeTagModal);
+  
+  const cancelBtn = document.getElementById('mobile-tag-cancel');
+  cancelBtn.addEventListener('click', closeTagModal);
+  
+  const applyBtn = document.getElementById('mobile-tag-apply');
+  applyBtn.addEventListener('click', applyTags);
+  
+  const addTagBtn = document.getElementById('mobile-add-tag-btn');
+  addTagBtn.addEventListener('click', addNewTag);
+  
+  const addTagInput = document.getElementById('mobile-add-tag-input');
+  addTagInput.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+      addNewTag();
+    }
+  });
+  
+  // Close modal when clicking outside content
+  modal.addEventListener('click', function(e) {
+    if (e.target === modal) {
+      closeTagModal();
     }
   });
 }
 
-// Update the mobile generate button based on current visible card
-// Update the mobile generate button based on current visible card
-function updateMobileGenerateButton() {
-  const mobileGenerateBtn = document.getElementById('mobile-generate-btn');
-  if (!mobileGenerateBtn) return;
+// Open the tag modal and populate it with the current card's tags
+function openTagModal() {
+  const modal = document.getElementById('mobile-tag-modal');
+  if (!modal) return;
   
-  // Get all prompt cards
-  const cards = document.querySelectorAll('.prompt-card');
-  if (cards.length === 0) {
-    mobileGenerateBtn.style.display = 'none';
+  // Get the active card
+  const activeCard = document.querySelector('.prompt-card.active-card');
+  if (!activeCard) {
+    showToast('error', 'No active card found');
     return;
   }
   
-  // Show the button since we have cards
-  mobileGenerateBtn.style.display = 'block';
+  const promptId = activeCard.dataset.promptId;
+  if (!promptId) {
+    showToast('error', 'Could not determine prompt ID');
+    return;
+  }
   
-  // Find the card that's most visible in the viewport
-  const cardsContainer = document.getElementById('prompt-cards');
-  if (!cardsContainer) return;
+  // Store the prompt ID on the modal
+  modal.dataset.promptId = promptId;
   
-  const scrollPosition = cardsContainer.scrollLeft;
-  const containerWidth = cardsContainer.offsetWidth;
+  // Get card title for the header
+  const cardTitle = activeCard.querySelector('.prompt-card-title');
+  const cardName = cardTitle ? cardTitle.textContent.trim() : 'Prompt';
   
-  let currentCard = null;
-  let maxVisibility = 0;
+  // Update modal header
+  const header = modal.querySelector('.mobile-tag-modal-header h3');
+  if (header) {
+    header.textContent = `Tags for "${cardName}"`;
+  }
   
-  cards.forEach(card => {
-    const rect = card.getBoundingClientRect();
-    const cardCenterX = rect.left + rect.width / 2;
-    const screenCenterX = window.innerWidth / 2;
-    const distanceFromCenter = Math.abs(cardCenterX - screenCenterX);
-    
-    // The card with center closest to screen center is most visible
-    if (currentCard === null || distanceFromCenter < maxVisibility) {
-      maxVisibility = distanceFromCenter;
-      currentCard = card;
+  // Load all available tags and the prompt's selected tags
+  fetchTagsForModal(promptId);
+  
+  // Show the modal
+  modal.style.display = 'block';
+  document.body.style.overflow = 'hidden'; // Prevent scrolling behind modal
+}
+
+// Close the tag modal
+function closeTagModal() {
+  const modal = document.getElementById('mobile-tag-modal');
+  if (modal) {
+    modal.style.display = 'none';
+    document.body.style.overflow = ''; // Restore scrolling
+  }
+}
+
+// Fetch all available tags and the prompt's selected tags
+async function fetchTagsForModal(promptId) {
+  try {
+    // Show loading state
+    const tagList = document.getElementById('mobile-tag-list');
+    if (tagList) {
+      tagList.innerHTML = '<div class="loading-tags">Loading tags...</div>';
     }
-  });
+    
+    // Get all global tags
+    const tagsResponse = await fetch('/api/tags');
+    const tagsData = await tagsResponse.json();
+    
+    // Get prompt details to know which tags are selected
+    const promptResponse = await fetch(`/api/prompts/${promptId}`);
+    const promptData = await promptResponse.json();
+    
+    if (tagsData.success && promptData.success) {
+      const allTags = tagsData.tags || [];
+      const promptTags = promptData.prompt.tags || [];
+      
+      // Render tags in the modal
+      renderTagsInModal(allTags, promptTags);
+    } else {
+      showToast('error', 'Error loading tags');
+      if (tagList) {
+        tagList.innerHTML = '<div class="error-message">Error loading tags</div>';
+      }
+    }
+  } catch (error) {
+    console.error('Error fetching tags:', error);
+    showToast('error', 'Error loading tags: ' + error.message);
+    
+    const tagList = document.getElementById('mobile-tag-list');
+    if (tagList) {
+      tagList.innerHTML = '<div class="error-message">Error loading tags</div>';
+    }
+  }
+}
+
+// Render tags in the modal
+function renderTagsInModal(allTags, selectedTags) {
+  const tagList = document.getElementById('mobile-tag-list');
+  if (!tagList) return;
   
-  // Mark the current card as active for visual feedback
-  cards.forEach(card => card.classList.remove('active-card'));
-  if (currentCard) {
-    currentCard.classList.add('active-card');
+  // Clear existing tags
+  tagList.innerHTML = '';
+  
+  if (allTags.length === 0) {
+    tagList.innerHTML = '<div class="no-tags-message">No tags available. Add your first tag below.</div>';
+    return;
+  }
+  
+  // Render each tag
+  allTags.forEach(tag => {
+    const isSelected = selectedTags.includes(tag);
+    const tagElement = document.createElement('div');
+    tagElement.className = `mobile-tag-item${isSelected ? ' selected' : ''}`;
+    tagElement.dataset.tag = tag;
+    tagElement.textContent = tag;
     
-    const promptId = currentCard.dataset.promptId;
-    console.log('Active card prompt ID:', promptId);
-    
-    // Store the active prompt ID on the button element
-    mobileGenerateBtn.dataset.promptId = promptId;
-    
-    // Update button text to include card name if available
-    const cardTitle = currentCard.querySelector('.prompt-card-title');
-    const cardName = cardTitle ? cardTitle.textContent.trim() : 'Image';
-    const buttonText = mobileGenerateBtn.querySelector('button');
-    buttonText.innerHTML = `<i class="fas fa-magic"></i> Generate "${cardName.substring(0, 15)}${cardName.length > 15 ? '...' : ''}"`;
-    
-    // Clear any existing click listeners
-    const button = mobileGenerateBtn.querySelector('button');
-    const newButton = button.cloneNode(true);
-    button.parentNode.replaceChild(newButton, button);
-    
-    // Add new click listener with explicit prompt ID to avoid closure issues
-    newButton.addEventListener('click', function() {
-      const activePromptId = mobileGenerateBtn.dataset.promptId;
-      console.log('Generating for prompt ID:', activePromptId);
-      generateImageForCard(activePromptId);
+    // Add click event to toggle selection
+    tagElement.addEventListener('click', function() {
+      this.classList.toggle('selected');
     });
+    
+    tagList.appendChild(tagElement);
+  });
+}
+
+// Add a new tag
+async function addNewTag() {
+  const input = document.getElementById('mobile-add-tag-input');
+  if (!input) return;
+  
+  const tag = input.value.trim();
+  if (!tag) {
+    showToast('error', 'Please enter a tag name');
+    return;
+  }
+  
+  try {
+    // Add to global tags first
+    const response = await fetch('/api/tags', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ tag })
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      input.value = ''; // Clear input
+      
+      // Refresh tags in modal
+      const modal = document.getElementById('mobile-tag-modal');
+      if (modal) {
+        const promptId = modal.dataset.promptId;
+        if (promptId) {
+          fetchTagsForModal(promptId);
+        }
+      }
+      
+      showToast('success', `Tag "${tag}" added`);
+    } else {
+      showToast('error', 'Error adding tag: ' + data.message);
+    }
+  } catch (error) {
+    console.error('Error adding tag:', error);
+    showToast('error', 'Error adding tag: ' + error.message);
+  }
+}
+
+// Apply the selected tags to the current prompt
+async function applyTags() {
+  const modal = document.getElementById('mobile-tag-modal');
+  if (!modal) return;
+  
+  const promptId = modal.dataset.promptId;
+  if (!promptId) {
+    showToast('error', 'No prompt ID found');
+    return;
+  }
+  
+  // Get all selected tags
+  const selectedTagElements = document.querySelectorAll('.mobile-tag-item.selected');
+  const selectedTags = Array.from(selectedTagElements).map(el => el.dataset.tag);
+  
+  try {
+    // First get the current prompt to know its existing tags
+    const promptResponse = await fetch(`/api/prompts/${promptId}`);
+    const promptData = await promptResponse.json();
+    
+    if (promptData.success) {
+      const currentTags = promptData.prompt.tags || [];
+      
+      // Find tags to add (in selected but not in current)
+      const tagsToAdd = selectedTags.filter(tag => !currentTags.includes(tag));
+      
+      // Find tags to remove (in current but not in selected)
+      const tagsToRemove = currentTags.filter(tag => !selectedTags.includes(tag));
+      
+      // Add new tags
+      for (const tag of tagsToAdd) {
+        await fetch(`/api/prompts/${promptId}/tags`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ tag })
+        });
+      }
+      
+      // Remove tags that are no longer selected
+      for (const tag of tagsToRemove) {
+        await fetch(`/api/prompts/${promptId}/tags/${encodeURIComponent(tag)}`, {
+          method: 'DELETE'
+        });
+      }
+      
+      if (tagsToAdd.length > 0 || tagsToRemove.length > 0) {
+        showToast('success', 'Tags updated successfully');
+      } else {
+        showToast('info', 'No changes to tags');
+      }
+      
+      // Close the modal
+      closeTagModal();
+    } else {
+      showToast('error', 'Error updating tags: ' + promptData.message);
+    }
+  } catch (error) {
+    console.error('Error applying tags:', error);
+    showToast('error', 'Error updating tags: ' + error.message);
   }
 }
 
 // Enhanced function to handle mobile card navigation
-// Call updateMobileGenerateButton more aggressively
 function enhanceMobileCardNavigation() {
   // Only run on mobile
   if (!isMobileDevice()) return;
@@ -1637,14 +1809,11 @@ function enhanceMobileCardNavigation() {
   // Add scroll indicators for visual feedback
   addScrollIndicators();
   
-  // Update indicators when scrolling
-  cardsContainer.addEventListener('scroll', function() {
-    updateScrollIndicators();
-    updateMobileGenerateButton(); // Update generate button on each scroll
-    
-    // Mark the container as having been scrolled to hide the hint
-    cardsContainer.classList.add('has-scrolled');
-  });
+  // Remove existing listeners to prevent duplicates
+  cardsContainer.removeEventListener('scroll', handleCardScroll);
+  
+  // Update indicators when scrolling with throttling
+  cardsContainer.addEventListener('scroll', handleCardScroll, { passive: true });
   
   // Add swipe navigation (optional)
   let startX, startTime;
@@ -1702,16 +1871,13 @@ function enhanceMobileCardNavigation() {
           inline: 'center'
         });
         
-        // Update the generate button after scroll animation completes
-        setTimeout(updateMobileGenerateButton, 500);
+        // Update the active card after scroll animation completes
+        setTimeout(updateActiveCard, 500);
       }
     }
     
     startX = null;
   }, { passive: true });
-  
-  // Also update the button periodically to handle any edge cases
-  setInterval(updateMobileGenerateButton, 2000);
 }
 
 // Event Listeners
@@ -1758,13 +1924,19 @@ document.addEventListener('DOMContentLoaded', () => {
       document.body.classList.toggle('mobile-layout', isMobile);
       
       if (isMobile) {
-        setupMobileGenerateButton();
+        setupMobileButtons();
         enhanceMobileCardNavigation();
       } else {
-        // Remove mobile generate button if switching to desktop
-        const mobileGenerateBtn = document.getElementById('mobile-generate-btn');
-        if (mobileGenerateBtn) {
-          mobileGenerateBtn.remove();
+        // Remove mobile buttons if switching to desktop
+        const buttonsContainer = document.getElementById('mobile-buttons-container');
+        if (buttonsContainer) {
+          buttonsContainer.remove();
+        }
+        
+        // Remove tag modal
+        const tagModal = document.getElementById('mobile-tag-modal');
+        if (tagModal) {
+          tagModal.remove();
         }
       }
       
@@ -1780,7 +1952,7 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Setup mobile-specific features if on mobile
   if (isMobileDevice()) {
-    setupMobileGenerateButton();
+    setupMobileButtons();
     enhanceMobileCardNavigation();
   }
   
