@@ -1259,3 +1259,260 @@
     right: 10px;
   }
 }
+
+/* Mobile Card Layout - Add to styles.css or as a new file */
+
+/* Mobile-specific styles for prompt cards */
+@media (max-width: 768px) {
+  /* Container for all prompt cards */
+  #prompts-gallery {
+    position: relative;
+    overflow: hidden; /* Hide overflow on the container */
+    padding-bottom: 30px; /* Add padding for scrollbar/indicators */
+  }
+  
+  /* Card container */
+  .prompt-cards {
+    flex-wrap: nowrap; /* Prevent cards from wrapping */
+    overflow-x: auto; /* Enable horizontal scrolling */
+    scroll-behavior: smooth; /* Smooth scrolling */
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    scroll-snap-type: x mandatory; /* Enable scroll snapping */
+    gap: 0; /* No gap between cards */
+    
+    /* Hide scrollbar but keep functionality */
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
+  }
+  
+  /* Hide scrollbar for Chrome/Safari */
+  .prompt-cards::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Individual prompt card */
+  .prompt-card {
+    margin: 0 5%; /* Center the card with equal margins */
+    scroll-snap-align: center; /* Snap to center of card */
+    transform: none !important; /* Prevent hover transform on mobile */
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15); /* Stronger shadow for better visibility */
+  }
+  
+  /* Scroll indicators */
+  .scroll-indicator {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 0.5rem;
+    z-index: 5;
+  }
+  
+  .scroll-indicator-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--gray-light);
+    transition: all 0.3s ease;
+  }
+  
+  .scroll-indicator-dot.active {
+    background-color: var(--primary-color);
+    transform: scale(1.25);
+  }
+  
+  /* Hide sections we don't need on mobile */
+  .collapsible-section {
+    margin-bottom: 0.5rem;
+  }
+  
+  /* Optimize card content for mobile */
+  .prompt-card-content {
+    padding: 1rem;
+  }
+  
+  .prompt-card-text {
+    -webkit-line-clamp: 2; /* Show only 2 lines */
+    font-size: 0.8rem;
+  }
+}
+
+/* Mobile Generate Button Styles - Add to styles.css */
+
+/* Fixed generate button for mobile */
+.mobile-generate-btn {
+  position: fixed;
+  bottom: 20px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+  padding: 0 1rem;
+  pointer-events: none; /* Allow clicks to pass through container */
+  transition: transform 0.3s ease, opacity 0.3s ease;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.mobile-generate-btn button {
+  pointer-events: auto; /* Make only the button clickable */
+  width: 80%;
+  max-width: 300px;
+  padding: 0.8rem 1rem;
+  font-size: 1rem;
+  font-weight: 500;
+  border-radius: 50px;
+  background-color: var(--primary-color);
+  color: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  text-align: center;
+  margin: 0 auto;
+}
+
+/* Active card styling */
+.active-card {
+  box-shadow: 0 0 0 2px var(--primary-color), 0 5px 15px rgba(0, 0, 0, 0.2) !important;
+  transform: scale(1.02) !important;
+}
+
+.mobile-generate-btn button i {
+  font-size: 1.1rem;
+}
+
+.mobile-generate-btn button:active {
+  transform: scale(0.97);
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Hide mobile generate button on desktop */
+@media (min-width: 769px) {
+  .mobile-generate-btn {
+    display: none;
+  }
+}
+
+/* Hide the card generate button on mobile (since we're showing at bottom) */
+@media (max-width: 768px) {
+  .prompt-card .card-generate-btn {
+    display: none;
+  }
+  
+  /* Also hide the dropdown toggle */
+  .prompt-card .dropdown-toggle {
+    display: none;
+  }
+  
+  /* Ensure there's space for the fixed button at the bottom */
+  main.container {
+    padding-bottom: 80px;
+  }
+  
+  /* Adjust the card actions container since we removed the generate button */
+  .prompt-card-actions {
+    justify-content: flex-end;
+  }
+  
+  /* Add a tap icon/hint to make it clear the card can be tapped */
+  .prompt-card-image::after {
+    content: "";
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    width: 30px;
+    height: 30px;
+    background-color: rgba(255, 255, 255, 0.9);
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='16' height='16'%3E%3Cpath fill='%236d28d9' d='M8 11V7a4 4 0 118 0m-4 8v-5m-8 7l5.4-5.4M4 19h16'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: center;
+  }
+}
+
+/* Hide New Prompt Dropdown on Mobile - Add to styles.css */
+
+@media (max-width: 768px) {
+  /* Hide the create prompt section on mobile */
+  #create-prompt-section {
+    display: none;
+  }
+  
+  /* Hide the tag management section on mobile */
+  #tag-management-section {
+    display: none;
+  }
+  
+  /* Adjust spacing for header to make more compact */
+  header {
+    padding: 0.5rem 0;
+    margin-bottom: 0.5rem;
+  }
+  
+  header h1 {
+    font-size: 1.2rem;
+  }
+  
+  .api-status {
+    font-size: 0.7rem;
+  }
+  
+  /* Add a floating action button for creating new prompts */
+  /* Only show if needed - uncomment if you want this functionality */
+  /*
+  .mobile-new-prompt-btn {
+    position: fixed;
+    bottom: 80px;
+    right: 20px;
+    z-index: 100;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background-color: var(--secondary-color);
+    color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  }
+  
+  .mobile-new-prompt-btn i {
+    font-size: 1.2rem;
+  }
+  */
+  
+  /* Make the gallery header smaller */
+  #prompts-gallery h2 {
+    font-size: 1.2rem;
+    margin-bottom: 0.5rem;
+    padding-left: 0.5rem;
+  }
+  
+  /* Adjust the loading indicator */
+  .loading-indicator {
+    padding: 1rem 0;
+  }
+}

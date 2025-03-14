@@ -338,6 +338,9 @@ function updateScrollIndicators() {
       dot.classList.remove('active');
     }
   });
+  
+  // Also update the mobile generate button
+  updateMobileGenerateButton();
 }
 
 // Function to enable touch-based drag and drop on mobile
@@ -510,6 +513,12 @@ function renderPromptCards(prompts) {
     setTimeout(() => {
       addScrollIndicators();
     }, 100);
+    
+    // Set up the mobile generate button
+    setupMobileGenerateButton();
+    
+    // Set up enhanced mobile navigation
+    enhanceMobileCardNavigation();
   }
 }
 
@@ -1078,7 +1087,14 @@ async function generateImageForCard(promptId) {
   try {
     // Update UI to show generation in progress
     statusElement.textContent = 'Generating...';
-    generateBtn.disabled = true;
+    if (generateBtn) generateBtn.disabled = true;
+    
+    // Also update the mobile generate button if it exists
+    const mobileGenerateBtn = document.getElementById('mobile-generate-btn');
+    if (mobileGenerateBtn) {
+      const button = mobileGenerateBtn.querySelector('button');
+      if (button) button.disabled = true;
+    }
     
     const response = await fetch(`/api/prompts/${promptId}/generate-temp`, {
       method: 'POST',
@@ -1129,7 +1145,14 @@ async function generateImageForCard(promptId) {
     
     showToast('error', 'Error generating image: ' + error.message);
   } finally {
-    generateBtn.disabled = false;
+    if (generateBtn) generateBtn.disabled = false;
+    
+    // Also update the mobile generate button if it exists
+    const mobileGenerateBtn = document.getElementById('mobile-generate-btn');
+    if (mobileGenerateBtn) {
+      const button = mobileGenerateBtn.querySelector('button');
+      if (button) button.disabled = false;
+    }
   }
 }
 
@@ -1475,6 +1498,222 @@ function setupCollapsibleSections() {
   });
 }
 
+// Modify the setupMobileGenerateButton function to ensure the button is always properly initialized
+function setupMobileGenerateButton() {
+  // Only run on mobile devices
+  if (!isMobileDevice()) return;
+  
+  // Remove any existing button first to avoid duplicates
+  const existingBtn = document.getElementById('mobile-generate-btn');
+  if (existingBtn) existingBtn.remove();
+  
+  // Create the fixed generate button
+  const mobileGenerateBtn = document.createElement('div');
+  mobileGenerateBtn.id = 'mobile-generate-btn';
+  mobileGenerateBtn.className = 'mobile-generate-btn';
+  mobileGenerateBtn.innerHTML = `
+    <button class="btn primary">
+      <i class="fas fa-magic"></i> Generate Image
+    </button>
+  `;
+  document.body.appendChild(mobileGenerateBtn);
+  
+  // Initially hide the button until cards are loaded
+  mobileGenerateBtn.style.display = 'none';
+  
+  // Set up listeners for scroll to update button
+  const promptCardsContainer = document.getElementById('prompt-cards');
+  if (promptCardsContainer) {
+    promptCardsContainer.addEventListener('scroll', updateMobileGenerateButton);
+  }
+  
+  // Initial update after a delay to ensure cards are rendered
+  setTimeout(updateMobileGenerateButton, 500);
+  
+  // Also force another update after a longer delay to catch any late rendering
+  setTimeout(updateMobileGenerateButton, 2000);
+  
+  // Add click event directly to the button
+  const button = mobileGenerateBtn.querySelector('button');
+  button.addEventListener('click', function() {
+    const promptId = mobileGenerateBtn.dataset.promptId;
+    if (promptId) {
+      console.log('Generating for prompt ID:', promptId);
+      generateImageForCard(promptId);
+    } else {
+      // If no promptId is set, find the currently visible card
+      const visibleCard = document.querySelector('.prompt-card.active-card');
+      if (visibleCard) {
+        const visiblePromptId = visibleCard.dataset.promptId;
+        console.log('Fallback: Generating for visible prompt ID:', visiblePromptId);
+        generateImageForCard(visiblePromptId);
+      } else {
+        console.error('No active prompt found');
+        showToast('error', 'Could not determine which prompt to use');
+      }
+    }
+  });
+}
+
+// Update the mobile generate button based on current visible card
+// Update the mobile generate button based on current visible card
+function updateMobileGenerateButton() {
+  const mobileGenerateBtn = document.getElementById('mobile-generate-btn');
+  if (!mobileGenerateBtn) return;
+  
+  // Get all prompt cards
+  const cards = document.querySelectorAll('.prompt-card');
+  if (cards.length === 0) {
+    mobileGenerateBtn.style.display = 'none';
+    return;
+  }
+  
+  // Show the button since we have cards
+  mobileGenerateBtn.style.display = 'block';
+  
+  // Find the card that's most visible in the viewport
+  const cardsContainer = document.getElementById('prompt-cards');
+  if (!cardsContainer) return;
+  
+  const scrollPosition = cardsContainer.scrollLeft;
+  const containerWidth = cardsContainer.offsetWidth;
+  
+  let currentCard = null;
+  let maxVisibility = 0;
+  
+  cards.forEach(card => {
+    const rect = card.getBoundingClientRect();
+    const cardCenterX = rect.left + rect.width / 2;
+    const screenCenterX = window.innerWidth / 2;
+    const distanceFromCenter = Math.abs(cardCenterX - screenCenterX);
+    
+    // The card with center closest to screen center is most visible
+    if (currentCard === null || distanceFromCenter < maxVisibility) {
+      maxVisibility = distanceFromCenter;
+      currentCard = card;
+    }
+  });
+  
+  // Mark the current card as active for visual feedback
+  cards.forEach(card => card.classList.remove('active-card'));
+  if (currentCard) {
+    currentCard.classList.add('active-card');
+    
+    const promptId = currentCard.dataset.promptId;
+    console.log('Active card prompt ID:', promptId);
+    
+    // Store the active prompt ID on the button element
+    mobileGenerateBtn.dataset.promptId = promptId;
+    
+    // Update button text to include card name if available
+    const cardTitle = currentCard.querySelector('.prompt-card-title');
+    const cardName = cardTitle ? cardTitle.textContent.trim() : 'Image';
+    const buttonText = mobileGenerateBtn.querySelector('button');
+    buttonText.innerHTML = `<i class="fas fa-magic"></i> Generate "${cardName.substring(0, 15)}${cardName.length > 15 ? '...' : ''}"`;
+    
+    // Clear any existing click listeners
+    const button = mobileGenerateBtn.querySelector('button');
+    const newButton = button.cloneNode(true);
+    button.parentNode.replaceChild(newButton, button);
+    
+    // Add new click listener with explicit prompt ID to avoid closure issues
+    newButton.addEventListener('click', function() {
+      const activePromptId = mobileGenerateBtn.dataset.promptId;
+      console.log('Generating for prompt ID:', activePromptId);
+      generateImageForCard(activePromptId);
+    });
+  }
+}
+
+// Enhanced function to handle mobile card navigation
+// Call updateMobileGenerateButton more aggressively
+function enhanceMobileCardNavigation() {
+  // Only run on mobile
+  if (!isMobileDevice()) return;
+  
+  const cardsContainer = document.getElementById('prompt-cards');
+  if (!cardsContainer) return;
+  
+  // Add scroll indicators for visual feedback
+  addScrollIndicators();
+  
+  // Update indicators when scrolling
+  cardsContainer.addEventListener('scroll', function() {
+    updateScrollIndicators();
+    updateMobileGenerateButton(); // Update generate button on each scroll
+    
+    // Mark the container as having been scrolled to hide the hint
+    cardsContainer.classList.add('has-scrolled');
+  });
+  
+  // Add swipe navigation (optional)
+  let startX, startTime;
+  
+  cardsContainer.addEventListener('touchstart', function(e) {
+    startX = e.touches[0].clientX;
+    startTime = new Date().getTime();
+  }, { passive: true });
+  
+  cardsContainer.addEventListener('touchend', function(e) {
+    if (!startX) return;
+    
+    const endX = e.changedTouches[0].clientX;
+    const endTime = new Date().getTime();
+    const deltaX = endX - startX;
+    const deltaTime = endTime - startTime;
+    
+    // Determine if it was a swipe (fast enough and long enough)
+    if (deltaTime < 300 && Math.abs(deltaX) > 50) {
+      const cards = document.querySelectorAll('.prompt-card');
+      if (cards.length < 2) return;
+      
+      // Find the current card
+      let currentCardIndex = 0;
+      let maxVisibility = 0;
+      
+      cards.forEach((card, index) => {
+        const rect = card.getBoundingClientRect();
+        const visibility = Math.min(
+          rect.right, 
+          window.innerWidth
+        ) - Math.max(rect.left, 0);
+        
+        if (visibility > maxVisibility) {
+          maxVisibility = visibility;
+          currentCardIndex = index;
+        }
+      });
+      
+      // Calculate target card based on swipe direction
+      let targetCardIndex;
+      if (deltaX > 0) {
+        // Swiped right, go to previous card
+        targetCardIndex = Math.max(0, currentCardIndex - 1);
+      } else {
+        // Swiped left, go to next card
+        targetCardIndex = Math.min(cards.length - 1, currentCardIndex + 1);
+      }
+      
+      // Scroll to the target card
+      if (targetCardIndex !== currentCardIndex) {
+        cards[targetCardIndex].scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'nearest',
+          inline: 'center'
+        });
+        
+        // Update the generate button after scroll animation completes
+        setTimeout(updateMobileGenerateButton, 500);
+      }
+    }
+    
+    startX = null;
+  }, { passive: true });
+  
+  // Also update the button periodically to handle any edge cases
+  setInterval(updateMobileGenerateButton, 2000);
+}
+
 // Event Listeners
 document.addEventListener('DOMContentLoaded', () => {
   // Check API status on load
@@ -1518,6 +1757,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (wasMobile !== isMobile) {
       document.body.classList.toggle('mobile-layout', isMobile);
       
+      if (isMobile) {
+        setupMobileGenerateButton();
+        enhanceMobileCardNavigation();
+      } else {
+        // Remove mobile generate button if switching to desktop
+        const mobileGenerateBtn = document.getElementById('mobile-generate-btn');
+        if (mobileGenerateBtn) {
+          mobileGenerateBtn.remove();
+        }
+      }
+      
       // Reload the layout with a slight delay to ensure DOM updates
       setTimeout(() => {
         loadPrompts();
@@ -1527,6 +1777,12 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Set initial mobile class
   document.body.classList.toggle('mobile-layout', isMobileDevice());
+  
+  // Setup mobile-specific features if on mobile
+  if (isMobileDevice()) {
+    setupMobileGenerateButton();
+    enhanceMobileCardNavigation();
+  }
   
   // Set up periodic API status check
   setInterval(checkApiStatus, 60000); // Check every minute
